@@ -9,6 +9,7 @@ import org.apache.http.HttpHeaders;
 import org.json.JSONObject;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -40,7 +41,7 @@ public class Pitch {
         );
     }
 
-    record User(String id, String userId, Date startTime, Date endTime) {
+    record User(String id, String userId, Date startTime, Date endTime, Long coins) {
     }
 
     record AuthData(String accessToken) {
@@ -91,9 +92,37 @@ public class Pitch {
         try {
             String url = "https://api.pitchtalk.app/v1/api/users/claim-farming";
             String res = HttpClientUtil.sendPost(url, new JSONObject(), getHeaders(token));
-            log.info("Claiming: " + res);
+            User user = CommonUtil.fromJson(res, User.class);
+            log.info("Farming. Balance: " + user.coins);
         } catch (Exception e) {
             log.error("Fail to claim.");
+            log.error(e.getMessage());
+        }
+    }
+
+    private Integer countRef(String token) {
+        try {
+            String url = "https://api.pitchtalk.app/v1/api/referral/count";
+            String res = HttpClientUtil.sendGet(url, getHeaders(token));
+            return Integer.valueOf(res);
+        } catch (Exception e) {
+            log.error("Fail to count ref.");
+            log.error(e.getMessage());
+            return 0;
+        }
+    }
+
+    private void claimRef(String token) {
+        try {
+            if (countRef(token) == 0) {
+                return;
+            }
+            String url = "https://api.pitchtalk.app/v1/api/users/claim-referral";
+            String res = HttpClientUtil.sendPost(url, new JSONObject(), getHeaders(token));
+            User user = CommonUtil.fromJson(res, User.class);
+            log.info("Claim ref. Balance: " + user.coins);
+        } catch (Exception e) {
+            log.error("Fail to claim ref.");
             log.error(e.getMessage());
         }
     }
@@ -109,6 +138,21 @@ public class Pitch {
                 log.error("Fail to get token.");
             }
             log.info("================ End Farming Pitch ================");
+        }).start());
+    }
+
+    @Scheduled(cron = "0 30 0/6 ? * *")
+    @EventListener(ApplicationReadyEvent.class)
+    public void claimRef() {
+        queryIds.forEach(e -> new Thread(() -> {
+            log.info("================ Start Claim Ref Pitch ================");
+            AuthData authData = auth(e);
+            if (authData != null) {
+                claimRef(authData.accessToken);
+            } else {
+                log.error("Fail to get token.");
+            }
+            log.info("================ End Claim Ref Pitch ================");
         }).start());
     }
 }
