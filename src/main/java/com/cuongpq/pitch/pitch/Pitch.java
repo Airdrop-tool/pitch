@@ -71,7 +71,7 @@ public class Pitch {
             User user = CommonUtil.fromJson(res, User.class);
             if (user != null) {
                 Date current = DateUtil.getCurrentDate();
-                if (user.endTime.after(current)) {
+                if (user.endTime != null && user.endTime.after(current)) {
                     log.info("Next farming: " + DateUtil.toString(user.endTime, FORMAT_HOUR_MINUTE_DAY_MONTH_YEAR));
                     Thread.sleep(user.endTime.getTime() - current.getTime() + 5000);
                     claim(token);
