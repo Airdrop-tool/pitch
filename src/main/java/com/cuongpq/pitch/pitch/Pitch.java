@@ -70,14 +70,10 @@ public class Pitch {
             String res = HttpClientUtil.sendGet(url, getHeaders(token));
             User user = CommonUtil.fromJson(res, User.class);
             if (user != null) {
-                Date current = DateUtil.getCurrentDate();
-                if (user.endTime != null && user.endTime.after(current)) {
-                    log.info("Next farming: " + DateUtil.toString(user.endTime, FORMAT_HOUR_MINUTE_DAY_MONTH_YEAR));
-                    Thread.sleep(user.endTime.getTime() - current.getTime() + 5000);
-                    claim(token);
-                } else {
-                    claim(token);
-                }
+                long timeLeft = calculateTime(user);
+                log.info("Wait " + DateUtil.toTime(timeLeft));
+                Thread.sleep(timeLeft);
+                claim(token);
                 farmings(token);
             } else {
                 log.error(res);
@@ -86,6 +82,18 @@ public class Pitch {
             log.error("Fail to get farmings data.");
             log.error(e.getMessage());
         }
+    }
+
+    private long calculateTime(User user) {
+        if (user == null) {
+            return 5000L;
+        }
+        Date current = DateUtil.getCurrentDate();
+        if (user.endTime != null && user.endTime.after(current)) {
+            long timeLeft = user.endTime.getTime() - current.getTime();
+            return (timeLeft > 0 ? timeLeft : 0) + 5000;
+        }
+        return 5000L;
     }
 
     private void claim(String token) {
@@ -141,7 +149,7 @@ public class Pitch {
         }).start());
     }
 
-    @Scheduled(cron = "0 30 0/6 ? * *")
+    @Scheduled(cron = "0 0 0/4 ? * *")
     @EventListener(ApplicationReadyEvent.class)
     public void claimRef() {
         queryIds.forEach(e -> new Thread(() -> {
